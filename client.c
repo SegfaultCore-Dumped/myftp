@@ -44,6 +44,7 @@ int main(int ac, char const **av)
     size_t len = 0;     /* ignored when line = NULL */
     ssize_t read_line;
     bool user = false;
+    bool pass = false;
     char *str = malloc(sizeof(char) * 80);
     char *rts = malloc(sizeof(char) * 80);
 
@@ -75,23 +76,36 @@ int main(int ac, char const **av)
                     strcpy(rts, line);
                     read(sockfd, buff, MAX);
                     printf("%s", buff);
+                    pass = true;
                 }
-            }  else {
+            }
+            else if (pass == true) {
+                if (strncmp(line, "QUIT", 4) == 0) {
+                    close(sockfd);
+                    return (0);
+                }
+                if (strncmp(line, "PWD", 3) == 0) {
+                    read(sockfd, buff, MAX);
+                    printf("%s", buff);
+                }
+            } else {
                 read(sockfd, buff, MAX);
                 printf("%s", buff);
             }
-            if (strncmp(str, "USER Anonymous", 14) == 0) {
-                if (strncmp(rts, "PASS ", 5) == 0) {
-                    if (strncmp(line, "QUIT", 4) == 0) {
-                        close(sockfd);
-                        return (0);
-                    }
-                    if (strncmp(line, "PWD", 3) == 0) {
-                        read(sockfd, buff, MAX);
-                        printf("%s", buff);
+            /*if (pass == true) {
+                if (strncmp(str, "USER Anonymous", 14) == 0) {
+                    if (strncmp(rts, "PASS ", 5) == 0) {
+                        if (strncmp(line, "QUIT", 4) == 0) {
+                            close(sockfd);
+                            return (0);
+                        }
+                        if (strncmp(line, "PWD", 3) == 0) {
+                            read(sockfd, buff, MAX);
+                            printf("%s", buff);
+                        }
                     }
                 }
-            }
+                }*/
         }
     }
     return 0; 
