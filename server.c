@@ -47,6 +47,10 @@ int main(int ac, char **av)
     //initialise all client_socket[] to 0 so not checked
     if (ac > 3 || ac < 3)
         return (84);
+    if (chdir(av[2]) == -1) {
+        perror(av[2]);
+        return (84);
+    }
     for (i = 0; i < max_clients; i++)
         client_socket[i] = 0;
     //create a master socket  
