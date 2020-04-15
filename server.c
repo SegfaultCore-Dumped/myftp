@@ -32,6 +32,17 @@ char *parseCmd(char *buff)
     return (buff);
 }
 
+char *parseUser(char *buff)
+{ 
+    char *token = strtok(buff, "A"); 
+    while (token != NULL) { 
+        //printf("%s", token);
+        token = strtok(NULL, "A"); 
+    }
+    //strip_extra_spaces(buff);
+    return (buff);
+}
+
 int main(int ac, char **av)   
 { 
     int master_socket , addrlen , new_socket , client_socket[30],  
@@ -40,17 +51,18 @@ int main(int ac, char **av)
     struct sockaddr_in address;
     char *rts = malloc(sizeof(char) * 80);
     char *string = malloc(sizeof(char) * 80);
+    char *user = malloc(sizeof(char) * 80);
     const char *str;
     char buffer[1025];  //data buffer of 1K 
     fd_set readfds;
      
-    //initialise all client_socket[] to 0 so not checked
     if (ac > 3 || ac < 3)
         return (84);
     if (chdir(av[2]) == -1) {
         perror(av[2]);
         return (84);
     }
+    //initialise all client_socket[] to 0 so not checked
     for (i = 0; i < max_clients; i++)
         client_socket[i] = 0;
     //create a master socket  
@@ -133,36 +145,43 @@ int main(int ac, char **av)
                 else {
                     parseCmd(buffer);
                     printf("%s\n", buffer);
-                    if (strncmp(buffer, "USER Anonymous", 14) == 0) {
+                    strcpy(user, buffer);
+                    parseUser(user);
+                    // printf("%s\n", user);
+                    if (strncmp(buffer, "USER Anonymous", 14) == 0 || strncmp(user, "USER ", 4) == 0) {
                         strcpy(rts, buffer);
                         write(sd, "331 User name okay, need password\n", 34);
                     }
                     else if (strncmp(buffer, "PASS ", 5) == 0) {
                         strcpy(string, buffer);
-                        write(sd, "230 User logged in, proceed\n", 28);
+                        if (strncmp(rts, "USER Anonymous", 14) == 0)
+                            write(sd, "230 User logged in, proceed\n", 28);
+                        else
+                            write(sd, "530 Login incorrect\n", 19);
                     }
                     else if (strncmp(rts, "USER Anonymous", 14) == 0) {
                         if (strncmp(string, "PASS ", 5) == 0) {
                             if (strncmp(buffer, "QUIT", 4) == 0) {
                                 getpeername(sd, (struct sockaddr*)&address, (socklen_t*)&addrlen);
                                 printf("Host disconnected , ip %s , port %d\n", inet_ntoa(address.sin_addr), ntohs(address.sin_port));
-                                close(sd);   
+                                close(sd);
                                 client_socket[i] = 0;
                                 break;
                             }
-                            if (strncmp(buffer, "PWD", 3) == 0) {
+                            else if (strncmp(buffer, "PWD", 3) == 0) {
                                 str = getenv("PWD");
                                 char *result = malloc(strlen(str) + strlen("\n") + 2);
                                 strcpy(result, str);
                                 strcat(result, "\n");
                                 write(sd, result, strlen(result) + 2);
                             }
+                            else
+                                write(sd, "500 Syntax error, command unrecognized\n", 39);
                         }
                     } else
                         write(sd, "530 Permission denied\n", 22);
                     bzero(buffer, sizeof(buffer));
                     FD_CLR(sd, &readfds);
-                    
                 }
             }
         }   

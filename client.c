@@ -33,6 +33,17 @@ char *parseCmd(char *buff)
     return (buff);
 }
 
+char *parseUser(char *buff)
+{ 
+    char *token = strtok(buff, "A"); 
+    while (token != NULL) { 
+        //printf("%s", token);
+        token = strtok(NULL, "A"); 
+    }
+    //strip_extra_spaces(buff);
+    return (buff);
+}
+
 int main(int ac, char const **av) 
 { 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -43,10 +54,11 @@ int main(int ac, char const **av)
     char *line = NULL;  /* forces getline to allocate with malloc */
     size_t len = 0;     /* ignored when line = NULL */
     ssize_t read_line;
-    bool user = false;
-    bool pass = false;
+    // bool user = false;
+    //bool pass = false;
     char *str = malloc(sizeof(char) * 80);
     char *rts = malloc(sizeof(char) * 80);
+    char *user = malloc(sizeof(char) * 80);
 
     ac = ac;
     if (sockfd == -1)
@@ -63,8 +75,54 @@ int main(int ac, char const **av)
             //write(sockfd, buff, strlen(line));
             //if (strncmp(line, "USER Anonymous\n", 15) == 0) {
             parseCmd(line);
+            strcpy(user, line);
+            parseUser(user);
             write(sockfd, line, strlen(line) + 2);
             //printf("after parse: %s\n", line);
+            if (strncmp(buff, "USER Anonymous", 14) == 0 || strncmp(user, "USER", 4) == 0) {
+                strcpy(rts, line);
+                read(sockfd, buff, MAX);
+                printf("%s", buff);
+            }
+            else if (strncmp(line, "PASS ", 5) == 0) {
+                strcpy(str, line);
+                if (strncmp(user, rts, 14) != 0) {
+                    read(sockfd, buff, MAX);
+                    printf("%s", buff);
+                } else {
+                    read(sockfd, buff, MAX);
+                    printf("%s", buff);
+                }
+            }
+            else if (strncmp(rts, "USER Anonymous", 14) == 0) {
+                if (strncmp(str, "PASS ", 5) == 0) {
+                    if (strncmp(line, "QUIT", 4) == 0) {
+                        close(sockfd);
+                        return (0);
+                    }
+                    else if (strncmp(line, "PWD", 3) == 0) {
+                        read(sockfd, buff, MAX);
+                        printf("%s", buff);
+                    } else {
+                        read(sockfd, buff, MAX);
+                        printf("%s", buff);
+                    }
+                }
+            } else {
+                read(sockfd, buff, MAX);
+                printf("%s", buff);
+            }
+
+
+
+
+
+            
+            /* if (strncmp(user, "USER", 4) == 0) {
+                strcpy(user, buffer);
+                read(sockfd, buff, MAX);
+                printf("%s", buff);
+            }
             if (strncmp(line, "USER Anonymous", 14) == 0) {
                 strcpy(str, line);
                 read(sockfd, buff, MAX);
@@ -91,7 +149,7 @@ int main(int ac, char const **av)
             } else {
                 read(sockfd, buff, MAX);
                 printf("%s", buff);
-            }
+                }*/
             /*if (pass == true) {
                 if (strncmp(str, "USER Anonymous", 14) == 0) {
                     if (strncmp(rts, "PASS ", 5) == 0) {
