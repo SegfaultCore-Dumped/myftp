@@ -11,16 +11,50 @@
 #include <ctype.h>
 #include <stdbool.h>
 
-char *pwd(void)
+typedef struct command_s
+{
+    char *cmd;
+    void (*func)(int, int);
+} command_t;
+
+void help(int sd, int i)
+{
+    i = i;
+    write(sd, "214 Help message\n", 17);
+    write(sd, "HELP NOOP PWD QUIT USER\n", 24);
+}
+void noop(int sd, int i)
+{
+    i = i;
+    write(sd, "200 Command okay\n", 17);
+}
+
+void pwd(int sd, int i)
 {
     const char *str = getenv("PWD");
     char *add = "257 \"";
     char *result = malloc(strlen(str) + strlen("\n")
                           + strlen("257 \"") + 1);
+    sd = sd;
+    i = i;
     strcpy(result, add);
     strcat(result, str);
     strcat(result, "\" created\n");
-    return (result);
+    write(sd, result, strlen(result));
+}
+
+command_t command[] = {{"PWD", pwd},
+                       {"NOOP", noop},
+                       {"HELP", help}};
+
+void check_command(int sd, char *buffer, int i)
+{
+    for (command_t *cmd = command; cmd != command + sizeof(command) / sizeof(command[0]); cmd++) {
+        if(!strcmp(cmd->cmd, buffer)) {
+            (*cmd->func)(sd, i);
+            break;
+        }
+    }
 }
 
 void quit(int sd, struct sockaddr_in address, int addrlen)
@@ -199,15 +233,7 @@ int main(int ac, char **av)
                                 client_socket[i] = 0;
                                 break;
                             }
-                            else if (strncmp(buffer, "PWD", 3) == 0) {
-                                write(sd, pwd(), strlen(pwd()));
-                            }
-                            else if (strncmp(buffer, "NOOP", 4) == 0)
-                                 write(sd, "200 Command okay\n", 17);
-                            else if (strncmp(buffer, "HELP", 4) == 0) {
-                                 write(sd, "214 Help message\n", 17);
-                                 write(sd, "HELP NOOP PWD QUIT USER\n", 24);
-                            }
+                            check_command(sd, buffer, i);
                         }
                     } else
                         write(sd, "500 Syntax error, command unrecognized\n", 39);
