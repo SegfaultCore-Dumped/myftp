@@ -106,7 +106,7 @@ char *password(int sd, char *buffer, char *rts)
 char *username(int sd, char *buffer)
 {
     char *rts = malloc(sizeof(char) * 80);
-    
+
     strcpy(rts, buffer);
     write(sd, "331 User name okay, need password\n", 34);
     return (rts);
@@ -237,12 +237,12 @@ int main(int ac, char **av)
                     }
                     else if (strncmp(rts, "USER Anonymous", 14) == 0) {
                         if (strncmp(string, "PASS ", 5) == 0) {
-                            
+
                             if (strncmp(buffer, "QUIT", 4) == 0) {
                                 quit(sd, address, addrlen);
                                 client_socket[i] = 0;
                                 break;
-                                
+
                             }
                             else if (check_command(sd, buffer) == 1)
                                 write(sd, "500 Syntax error, command unrecognized\n", 39);
@@ -256,5 +256,5 @@ int main(int ac, char **av)
         }
     }
 
-    return 0;
+    return (0);
 }
