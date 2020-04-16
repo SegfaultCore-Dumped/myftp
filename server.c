@@ -55,6 +55,7 @@ int main(int ac, char **av)
     const char *str;
     char buffer[1025];  //data buffer of 1K 
     fd_set readfds;
+    // bool pas = false;
      
     if (ac > 3 || ac < 3)
         return (84);
@@ -154,8 +155,10 @@ int main(int ac, char **av)
                     }
                     else if (strncmp(buffer, "PASS ", 5) == 0) {
                         strcpy(string, buffer);
-                        if (strncmp(rts, "USER Anonymous", 14) == 0)
+                        if (strncmp(rts, "USER Anonymous", 14) == 0) {
                             write(sd, "230 User logged in, proceed\n", 28);
+                            // pas = true;
+                        }
                         else
                             write(sd, "530 Not logged in\n", 18);
                     }
@@ -184,11 +187,18 @@ int main(int ac, char **av)
                                 strcat(result, "\" created\n");
                                 write(sd, result, strlen(result));
                             }
-                            else
-                                write(sd, "500 Syntax error, command unrecognized\n", 39);
+                            else if (strncmp(buffer, "NOOP", 4) == 0)
+                                 write(sd, "200 Command okay\n", 17);
+                            else if (strncmp(buffer, "HELP", 4) == 0) {
+                                 write(sd, "214 Help message\n", 17);
+                                 write(sd, "HELP NOOP PWD QUIT USER\n", 24);
+                            }
+                            // else
+                            // write(sd, "500 Syntax error, command unrecognized\n", 39);
                         }
-                    } else
-                        write(sd, "530 Permission denied\n", 22);
+                    }
+                    else
+                        write(sd, "500 Syntax error, command unrecognized\n", 39);
                     bzero(buffer, sizeof(buffer));
                     FD_CLR(sd, &readfds);
                 }
