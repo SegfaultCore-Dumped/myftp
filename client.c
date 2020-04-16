@@ -66,9 +66,9 @@ int main(int ac, char const **av)
     client.sin_family = AF_INET; 
     client.sin_addr.s_addr = inet_addr(av[1]);
     client.sin_port = htons(atoi(av[2]));
+    if (connect(sockfd, (const struct sockaddr *)&client, sizeof(client)) == -1)
+        return (84);
     while (42) {
-        if (connect(sockfd, (const struct sockaddr *)&client, sizeof(client)) == -1)
-            return (84);
         read(sockfd, buff, MAX);
         printf("%s", buff);
         while ((read_line = getline(&line, &len, stdin)) != -1) {
