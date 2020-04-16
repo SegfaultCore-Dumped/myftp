@@ -163,69 +163,49 @@ int main(int ac, char **av)
         perror(av[2]);
         return (84);
     }
-    //initialise all client_socket[] to 0 so not checked
     for (i = 0; i < max_clients; i++)
         client_socket[i] = 0;
-    //create a master socket
     if( (master_socket = socket(AF_INET , SOCK_STREAM , 0)) == 0) {
         perror("socket failed");
         return (84);
     }
-    //set master socket to allow multiple connections
-    //type of socket created
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(atoi(av[1]));
-    //bind the socket to localhost port 8888
     if (bind(master_socket, (struct sockaddr *)&address, sizeof(address)) < 0) {
         perror("bind failed");
         return (84);
     }
     printf("Listener on port %d\n", atoi(av[1]));
-    //try to specify maximum of 3 pending connections for the master socket
     if (listen(master_socket, 3) < 0) {
         perror("listen");
         return (84);
     }
-    //accept the incoming connection
     addrlen = sizeof(address);
     puts("Waiting for connections ...");
 
     while(42) {
-        //clear the socket set
         FD_ZERO(&readfds);
-        //add master socket to set
         FD_SET(master_socket, &readfds);
         max_sd = master_socket;
-        //add child sockets to set
         for ( i = 0 ; i < max_clients ; i++) {
-            //socket descriptor
             sd = client_socket[i];
-            //if valid socket descriptor then add to read list
             if(sd > 0)
                 FD_SET(sd, &readfds);
-            //highest file descriptor number, need it for the select function
             if(sd > max_sd)
                 max_sd = sd;
         }
-        //wait for an activity on one of the sockets, timeout is NULL,
-        //so wait indefinitely
         activity = select(max_sd + 1, &readfds, NULL, NULL, NULL);
         if ((activity < 0) && (errno!=EINTR))
             printf("select error");
-        //If something happened on the master socket ,
-        //then its an incoming connection
         if (FD_ISSET(master_socket, &readfds)) {
             if ((new_socket = accept(master_socket, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
                 perror("accept");
                 exit(EXIT_FAILURE);
             }
-            //inform user of socket number - used in send and receive commands
             printf("New connection , socket fd is %d , ip is : %s , port : %d\n" , new_socket , inet_ntoa(address.sin_addr) , ntohs(address.sin_port));
             write(new_socket, "220 Service ready for new user\n", 31);
-            //add new socket to array of sockets
             for (i = 0; i < max_clients; i++) {
-                //if position is empty
                 if( client_socket[i] == 0) {
                     client_socket[i] = new_socket;
                     printf("Adding to list of sockets as %d\n" , i);
@@ -233,7 +213,6 @@ int main(int ac, char **av)
                 }
             }
         }
-        //else its some IO operation on some other socket
         for (i = 0; i < max_clients; i++) {
             sd = client_socket[i];
             if (FD_ISSET(sd , &readfds)) {
@@ -241,12 +220,10 @@ int main(int ac, char **av)
                     quit(sd, address, addrlen);
                     client_socket[i] = 0;
                 } else {
-                    // printf("yo!\n");
                     parsecmd(buffer);
                     printf("%s\n", buffer);
                     strcpy(user, buffer);
                     parseuser(user);
-                    // printf("%s\n", user);
                     if (strncmp(buffer, "USER Anonymous", 14) == 0
                         || strncmp(user, "USER ", 4) == 0)
                         rts = username(sd, buffer);
@@ -268,19 +245,7 @@ int main(int ac, char **av)
                                 
                             }
                             else if (check_command(sd, buffer) == 1)
-                            //if (strncmp(buffer, "QUIT", 4) != 0)
                                 write(sd, "500 Syntax error, command unrecognized\n", 39);
-                           
-                            /* else if (strncmp(user, "DELE", 4) == 0) {
-                                printf("yooooo!\n");
-                                char *coca = pathname(sd, buffer);
-                                
-                                if (remove(coca) == 0) 
-                                    printf("Deleted successfully"); 
-                                else
-                                    printf("Unable to delete the file"); 
-                                    }*/
-                            
                         }
                     } else
                         write(sd, "530 Not logged in\n", 18);
