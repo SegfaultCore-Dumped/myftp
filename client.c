@@ -79,20 +79,24 @@ int main(int ac, char const **av)
             parseUser(user);
             write(sockfd, line, strlen(line) + 2);
             //printf("after parse: %s\n", line);
-            if (strncmp(buff, "USER Anonymous", 14) == 0 || strncmp(user, "USER", 4) == 0) {
+            if (strncmp(line, "USER Anonymous", 14) == 0 || strncmp(user, "USER", 4) == 0) {
                 strcpy(rts, line);
-                read(sockfd, buff, MAX);
+                read(sockfd, buff, sizeof(buff));
                 printf("%s", buff);
             }
             else if (strncmp(line, "PASS ", 5) == 0) {
                 strcpy(str, line);
                 if (strncmp(user, rts, 14) != 0) {
-                    read(sockfd, buff, MAX);
+                    read(sockfd, buff, sizeof(buff));
                     printf("%s", buff);
                 } else {
-                    read(sockfd, buff, MAX);
+                    read(sockfd, buff, sizeof(buff));
                     printf("%s", buff);
                 }
+            }
+            else if (strncmp(line, "QUIT", 4) == 0) {
+                close(sockfd);
+                return (0);
             }
             else if (strncmp(rts, "USER Anonymous", 14) == 0) {
                 if (strncmp(str, "PASS ", 5) == 0) {
@@ -101,10 +105,10 @@ int main(int ac, char const **av)
                         return (0);
                     }
                     else if (strncmp(line, "PWD", 3) == 0) {
-                        read(sockfd, buff, MAX);
+                        read(sockfd, buff, sizeof(buff));
                         printf("%s", buff);
                     } else {
-                        read(sockfd, buff, MAX);
+                        read(sockfd, buff, sizeof(buff));
                         printf("%s", buff);
                     }
                 }

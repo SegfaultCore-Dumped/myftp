@@ -157,7 +157,14 @@ int main(int ac, char **av)
                         if (strncmp(rts, "USER Anonymous", 14) == 0)
                             write(sd, "230 User logged in, proceed\n", 28);
                         else
-                            write(sd, "530 Login incorrect\n", 19);
+                            write(sd, "530 Not logged in\n", 18);
+                    }
+                    else if (strncmp(buffer, "QUIT", 4) == 0) {
+                        getpeername(sd, (struct sockaddr*)&address, (socklen_t*)&addrlen);
+                        printf("Host disconnected , ip %s , port %d\n", inet_ntoa(address.sin_addr), ntohs(address.sin_port));
+                        close(sd);
+                        client_socket[i] = 0;
+                        break;
                     }
                     else if (strncmp(rts, "USER Anonymous", 14) == 0) {
                         if (strncmp(string, "PASS ", 5) == 0) {
@@ -170,10 +177,12 @@ int main(int ac, char **av)
                             }
                             else if (strncmp(buffer, "PWD", 3) == 0) {
                                 str = getenv("PWD");
-                                char *result = malloc(strlen(str) + strlen("\n") + 2);
-                                strcpy(result, str);
-                                strcat(result, "\n");
-                                write(sd, result, strlen(result) + 2);
+                                char *add = "257 \"";
+                                char *result = malloc(strlen(str) + strlen("\n") + strlen("257 \"") + 1);
+                                strcpy(result, add);
+                                strcat(result, str);
+                                strcat(result, "\" created\n");
+                                write(sd, result, strlen(result));
                             }
                             else
                                 write(sd, "500 Syntax error, command unrecognized\n", 39);
