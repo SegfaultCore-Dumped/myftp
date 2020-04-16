@@ -1,3 +1,10 @@
+/*
+** EPITECH PROJECT, 2020
+** server.c
+** File description:
+** server.c
+*/
+
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,33 +17,31 @@
 #include <signal.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <sys/stat.h>
 
 typedef struct command_s
 {
     char *cmd;
-    void (*func)(int, int);
+    void (*func)(int);
 } command_t;
 
-void help(int sd, int i)
+void help(int sd)
 {
-    i = i;
     write(sd, "214 Help message\n", 17);
-    write(sd, "HELP NOOP PWD QUIT USER\n", 24);
 }
-void noop(int sd, int i)
+
+void noop(int sd)
 {
-    i = i;
     write(sd, "200 Command okay\n", 17);
 }
 
-void pwd(int sd, int i)
+void pwd(int sd)
 {
     const char *str = getenv("PWD");
     char *add = "257 \"";
     char *result = malloc(strlen(str) + strlen("\n")
                           + strlen("257 \"") + 1);
     sd = sd;
-    i = i;
     strcpy(result, add);
     strcat(result, str);
     strcat(result, "\" created\n");
@@ -47,14 +52,33 @@ command_t command[] = {{"PWD", pwd},
                        {"NOOP", noop},
                        {"HELP", help}};
 
-void check_command(int sd, char *buffer, int i)
+int check_command(int sd, char *buffer)
 {
+    if (strcmp("PWD", buffer) != 0
+        && strcmp("NOOP", buffer) != 0
+        && strcmp("HELP", buffer) != 0
+        && strcmp("QUIT", buffer) != 0)
+        return (1);
     for (command_t *cmd = command; cmd != command + sizeof(command) / sizeof(command[0]); cmd++) {
         if(!strcmp(cmd->cmd, buffer)) {
-            (*cmd->func)(sd, i);
+            (*cmd->func)(sd);
             break;
         }
     }
+    return (0);
+}
+
+char *pathname(int sd, char *buffer)
+{
+    int i = 0;
+    int j = 0;
+    char *str = malloc(sizeof(char) * 80);
+
+    sd = sd;
+    for (i = 0; buffer[i] != ' '; i++);
+    for (i = i + 1; buffer[i] != '\0'; i++)
+        str[j++] = buffer[i];
+    return (str);
 }
 
 void quit(int sd, struct sockaddr_in address, int addrlen)
@@ -113,6 +137,12 @@ char *parsecmd(char *buff)
         token = strtok(NULL, "\t\r\n");
     strip_extra_spaces(buff);
     return (buff);
+}
+
+bool file_exist (char *filename)
+{
+  struct stat   buffer;
+  return (stat (filename, &buffer) == 0);
 }
 
 int main(int ac, char **av)
@@ -211,6 +241,7 @@ int main(int ac, char **av)
                     quit(sd, address, addrlen);
                     client_socket[i] = 0;
                 } else {
+                    // printf("yo!\n");
                     parsecmd(buffer);
                     printf("%s\n", buffer);
                     strcpy(user, buffer);
@@ -219,8 +250,9 @@ int main(int ac, char **av)
                     if (strncmp(buffer, "USER Anonymous", 14) == 0
                         || strncmp(user, "USER ", 4) == 0)
                         rts = username(sd, buffer);
-                    else if (strncmp(buffer, "PASS ", 5) == 0)
+                    else if (strncmp(buffer, "PASS ", 5) == 0) {
                         string = password(sd, buffer, rts);
+                    }
                     else if (strncmp(buffer, "QUIT", 4) == 0) {
                         quit(sd, address, addrlen);
                         client_socket[i] = 0;
@@ -228,15 +260,30 @@ int main(int ac, char **av)
                     }
                     else if (strncmp(rts, "USER Anonymous", 14) == 0) {
                         if (strncmp(string, "PASS ", 5) == 0) {
+                            
                             if (strncmp(buffer, "QUIT", 4) == 0) {
                                 quit(sd, address, addrlen);
                                 client_socket[i] = 0;
                                 break;
+                                
                             }
-                            check_command(sd, buffer, i);
+                            else if (check_command(sd, buffer) == 1)
+                            //if (strncmp(buffer, "QUIT", 4) != 0)
+                                write(sd, "500 Syntax error, command unrecognized\n", 39);
+                           
+                            /* else if (strncmp(user, "DELE", 4) == 0) {
+                                printf("yooooo!\n");
+                                char *coca = pathname(sd, buffer);
+                                
+                                if (remove(coca) == 0) 
+                                    printf("Deleted successfully"); 
+                                else
+                                    printf("Unable to delete the file"); 
+                                    }*/
+                            
                         }
                     } else
-                        write(sd, "500 Syntax error, command unrecognized\n", 39);
+                        write(sd, "530 Not logged in\n", 18);
                     bzero(buffer, sizeof(buffer));
                     FD_CLR(sd, &readfds);
                 }
