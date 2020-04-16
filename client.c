@@ -26,7 +26,7 @@ void strip_extra_spaces(char* str)
     str[x] = '\0';
 }
 
-char *parseCmd(char *buff)
+char *parsecmd(char *buff)
 {
     char *token = strtok(buff, "\t\r\n");
     while (token != NULL) {
@@ -57,7 +57,7 @@ int main(int ac, char const **av)
         read(sockfd, buff, MAX);
         printf("%s", buff);
         while ((read_line = getline(&line, &len, stdin)) != -1) {
-            parseCmd(line);
+            parsecmd(line);
             write(sockfd, line, strlen(line) + 2);
             read(sockfd, buff, sizeof(buff));
             if (strncmp(line, "QUIT", 4) == 0) {
