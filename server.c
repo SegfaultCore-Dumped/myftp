@@ -49,6 +49,16 @@ void cwd(int sd, char *buffer)
     free(path);
 }
 
+void cdup(int sd)
+{
+    sd = sd;
+    if (chdir("..") == 0)
+        write(sd, "200 Command okay\n", 17);
+    else
+        write(sd, "no existe bro\n", 14);
+    // free(path);
+}
+
 void help(int sd)
 {
     write(sd, "214 Help message\n", 17);
@@ -73,18 +83,21 @@ void pwd(int sd)
     strcat(result, str);
     strcat(result, "\" created\n");
     write(sd, result, strlen(result));
+    free(result);
 }
 
 command_t command[] = {{"PWD", pwd},
                        {"NOOP", noop},
-                       {"HELP", help}};
+                       {"HELP", help},
+                       {"CDUP", cdup}};
 
 int check_command(int sd, char *buffer)
 {
     if (strcmp("PWD", buffer) != 0
         && strcmp("NOOP", buffer) != 0
         && strcmp("HELP", buffer) != 0
-        && strcmp("QUIT", buffer) != 0)
+        && strcmp("QUIT", buffer) != 0
+        && strcmp("CDUP", buffer) != 0)
         return (1);
     for (command_t *cmd = command; cmd != command + sizeof(command)
              / sizeof(command[0]); cmd++) {
@@ -100,9 +113,10 @@ void quit(int sd, struct sockaddr_in address, int addrlen)
 {
     getpeername(sd, (struct sockaddr*)&address,
                 (socklen_t*)&addrlen);
-     printf("Host disconnected , ip %s , port %d\n",
-            inet_ntoa(address.sin_addr),
-            ntohs(address.sin_port));
+    printf("Host disconnected , ip %s , port %d\n",
+           inet_ntoa(address.sin_addr),
+           ntohs(address.sin_port));
+    write(sd, "221 Service closing control connection\n", 39);
     close(sd);
 }
 

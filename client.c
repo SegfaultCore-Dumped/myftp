@@ -60,11 +60,11 @@ int main(int ac, char const **av)
             parsecmd(line);
             write(sockfd, line, strlen(line) + 2);
             read(sockfd, buff, sizeof(buff));
+            printf("%s", buff);
             if (strncmp(line, "QUIT", 4) == 0) {
                 close(sockfd);
                 return (0);
             }
-            printf("%s", buff);
         }
     }
     return (0);
