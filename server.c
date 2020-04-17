@@ -127,7 +127,9 @@ int check_command(int sd, char *buffer, char *user)
     return (0);
 }
 
-void quit(int sd, struct sockaddr_in address, int addrlen)
+void quit(int sd,
+          struct sockaddr_in address,
+          int addrlen)
 {
     getpeername(sd, (struct sockaddr*)&address,
                 (socklen_t*)&addrlen);
@@ -179,33 +181,33 @@ char *parsecommand(char *buff)
 
 void strip_extra_spaces(char* str)
 {
-  int i, x;
+    int i;
+    int x;
 
-  for(i=x=0; str[i]; ++i)
-    if(!isspace(str[i]) || (i > 0 && !isspace(str[i-1])))
-      str[x++] = str[i];
-  str[x] = '\0';
+    for(i=x=0; str[i]; ++i)
+        if(!isspace(str[i])
+           || (i > 0 && !isspace(str[i-1])))
+            str[x++] = str[i];
+    str[x] = '\0';
 }
 
 char *parsecmd(char *buff)
 {
     char *token = strtok(buff, "\t\r\n");
+
     while (token != NULL)
         token = strtok(NULL, "\t\r\n");
     strip_extra_spaces(buff);
     return (buff);
 }
 
-bool file_exist (char *filename)
-{
-  struct stat   buffer;
-  return (stat (filename, &buffer) == 0);
-}
-
 int main(int ac, char **av)
 {
-    int master_socket , addrlen , new_socket , client_socket[30],
-        max_clients = 30 , activity, i , valread , sd;
+    int master_socket, addrlen,
+        new_socket,
+        client_socket[30],
+        max_clients = 30,
+        activity, i, valread, sd;
     int max_sd;
     struct sockaddr_in address;
     char *rts = malloc(sizeof(char) * 80);
@@ -223,7 +225,7 @@ int main(int ac, char **av)
     }
     for (i = 0; i < max_clients; i++)
         client_socket[i] = 0;
-    if( (master_socket = socket(AF_INET , SOCK_STREAM , 0)) == 0) {
+    if ((master_socket = socket(AF_INET , SOCK_STREAM , 0)) == 0) {
         perror("socket failed");
         return (84);
     }
@@ -275,7 +277,7 @@ int main(int ac, char **av)
         for (i = 0; i < max_clients; i++) {
             sd = client_socket[i];
             if (FD_ISSET(sd , &readfds)) {
-                if ((valread = read(sd , buffer, sizeof(buffer))) <= 0) {
+                if ((valread = read(sd, buffer, sizeof(buffer))) <= 0) {
                     quit(sd, address, addrlen);
                     client_socket[i] = 0;
                 } else {
