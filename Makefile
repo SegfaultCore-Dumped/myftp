@@ -19,7 +19,7 @@ NAME_CLIENT	=	client
 
 CC	=	gcc
 
-CFLAGS	=	-W -Wall -Wextra
+CFLAGS	+=	-W -Wall -Wextra
 
 RM	=	rm -rf
 
