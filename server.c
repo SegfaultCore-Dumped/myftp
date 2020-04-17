@@ -49,14 +49,23 @@ void cwd(int sd, char *buffer)
     free(path);
 }
 
+void dele(int sd, char *buffer)
+{
+    char *path = pathname(sd, buffer);
+    printf("%s\n", path);
+    if (remove(path) == 0)
+        write(sd, "250 Requested file action okay, completed\n", 42); 
+    else
+        write(sd, "no existe bro\n", 14);
+    free(path);
+}
+
 void cdup(int sd)
 {
-    sd = sd;
     if (chdir("..") == 0)
         write(sd, "200 Command okay\n", 17);
     else
         write(sd, "no existe bro\n", 14);
-    // free(path);
 }
 
 void help(int sd)
@@ -274,6 +283,8 @@ int main(int ac, char **av)
                             }
                             else if (strncmp(user, "CWD", 3) == 0)
                                 cwd(sd, buffer);
+                            else if (strncmp(user, "DELE", 4) == 0)
+                                dele(sd, buffer);
                             else if (check_command(sd, buffer) == 1)
                                 write(sd, "500 Syntax error, command unrecognized\n", 39);
                         }
