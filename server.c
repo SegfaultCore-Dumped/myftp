@@ -22,7 +22,7 @@
 typedef struct command_s
 {
     char *cmd;
-    void (*func)(int);
+    void (*func)(int, char*);
 } command_t;
 
 char *pathname(int sd, char *buffer)
@@ -52,7 +52,7 @@ void cwd(int sd, char *buffer)
 void dele(int sd, char *buffer)
 {
     char *path = pathname(sd, buffer);
-    printf("%s\n", path);
+
     if (remove(path) == 0)
         write(sd, "250 Requested file action okay, completed\n", 42); 
     else
@@ -60,31 +60,35 @@ void dele(int sd, char *buffer)
     free(path);
 }
 
-void cdup(int sd)
+void cdup(int sd, char *buffer)
 {
+    buffer = buffer;
     if (chdir("..") == 0)
         write(sd, "200 Command okay\n", 17);
     else
         write(sd, "no existe bro\n", 14);
 }
 
-void help(int sd)
+void help(int sd, char *buffer)
 {
+    buffer = buffer;
     write(sd, "214 Help message\n", 17);
 }
 
-void noop(int sd)
+void noop(int sd, char *buffer)
 {
+    buffer = buffer;
     write(sd, "200 Command okay\n", 17);
 }
 
-void pwd(int sd)
+void pwd(int sd, char *buffer)
 {
     char str[1024];
     char *add = "257 \"";
     char *result;
 
     sd = sd;
+    buffer = buffer;
     getcwd(str, sizeof(str));
     result = malloc(strlen(str) + strlen("\n")
                     + strlen("257 \"") + 1);
@@ -98,20 +102,25 @@ void pwd(int sd)
 command_t command[] = {{"PWD", pwd},
                        {"NOOP", noop},
                        {"HELP", help},
-                       {"CDUP", cdup}};
+                       {"CDUP", cdup},
+                       {"DELE", dele},
+                       {"CWD", cwd}};
 
-int check_command(int sd, char *buffer)
+int check_command(int sd, char *buffer, char *user)
 {
-    if (strcmp("PWD", buffer) != 0
-        && strcmp("NOOP", buffer) != 0
-        && strcmp("HELP", buffer) != 0
-        && strcmp("QUIT", buffer) != 0
-        && strcmp("CDUP", buffer) != 0)
+    if (strcmp("PWD", user) != 0
+        && strcmp("NOOP", user) != 0
+        && strcmp("HELP", user) != 0
+        && strcmp("QUIT", user) != 0
+        && strcmp("CDUP", user) != 0
+        && strcmp("CWD", user) != 0
+        && strcmp("DELE", user) != 0)
         return (1);
-    for (command_t *cmd = command; cmd != command + sizeof(command)
+    for (command_t *cmd = command; cmd != command
+             + sizeof(command)
              / sizeof(command[0]); cmd++) {
-        if(!strcmp(cmd->cmd, buffer)) {
-            (*cmd->func)(sd);
+        if(!strcmp(cmd->cmd, user)) {
+            (*cmd->func)(sd, buffer);
             break;
         }
     }
@@ -153,8 +162,18 @@ char *username(int sd, char *buffer)
 char *parseuser(char *buff)
 {
     char *token = strtok(buff, "A");
+    
     while (token != NULL)
         token = strtok(NULL, "A");
+    return (buff);
+}
+
+char *parsecommand(char *buff)
+{
+    char *token = strtok(buff, " ");
+    
+    while (token != NULL)
+        token = strtok(NULL, " ");
     return (buff);
 }
 
@@ -192,6 +211,7 @@ int main(int ac, char **av)
     char *rts = malloc(sizeof(char) * 80);
     char *string = malloc(sizeof(char) * 80);
     char *user = malloc(sizeof(char) * 80);
+    char *command = malloc(sizeof(char) * 80);
     char buffer[1025];
     fd_set readfds;
 
@@ -263,6 +283,8 @@ int main(int ac, char **av)
                     printf("%s\n", buffer);
                     strcpy(user, buffer);
                     parseuser(user);
+                    strcpy(command, buffer);
+                    parsecommand(command);
                     if (strncmp(buffer, "USER Anonymous", 14) == 0
                         || strncmp(user, "USER ", 4) == 0)
                         rts = username(sd, buffer);
@@ -281,11 +303,7 @@ int main(int ac, char **av)
                                 client_socket[i] = 0;
                                 break;
                             }
-                            else if (strncmp(user, "CWD", 3) == 0)
-                                cwd(sd, buffer);
-                            else if (strncmp(user, "DELE", 4) == 0)
-                                dele(sd, buffer);
-                            else if (check_command(sd, buffer) == 1)
+                            else if (check_command(sd, buffer, command) == 1)
                                 write(sd, "500 Syntax error, command unrecognized\n", 39);
                         }
                     } else
