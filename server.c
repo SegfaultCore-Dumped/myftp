@@ -25,6 +25,19 @@ typedef struct command_s
     void (*func)(int);
 } command_t;
 
+char *pathname(int sd, char *buffer)
+{
+    int i = 0;
+    int j = 0;
+    char *str = malloc(sizeof(char) * 80);
+
+    sd = sd;
+    for (i = 0; buffer[i] != ' '; i++);
+    for (i = i + 1; buffer[i] != '\0'; i++)
+        str[j++] = buffer[i];
+    return (str);
+}
+
 void help(int sd)
 {
     write(sd, "214 Help message\n", 17);
@@ -37,11 +50,14 @@ void noop(int sd)
 
 void pwd(int sd)
 {
-    const char *str = getenv("PWD");
+    char str[1024];
     char *add = "257 \"";
-    char *result = malloc(strlen(str) + strlen("\n")
-                          + strlen("257 \"") + 1);
+    char *result;
+
     sd = sd;
+    getcwd(str, sizeof(str));
+    result = malloc(strlen(str) + strlen("\n")
+                    + strlen("257 \"") + 1);
     strcpy(result, add);
     strcat(result, str);
     strcat(result, "\" created\n");
@@ -59,26 +75,14 @@ int check_command(int sd, char *buffer)
         && strcmp("HELP", buffer) != 0
         && strcmp("QUIT", buffer) != 0)
         return (1);
-    for (command_t *cmd = command; cmd != command + sizeof(command) / sizeof(command[0]); cmd++) {
+    for (command_t *cmd = command; cmd != command + sizeof(command)
+             / sizeof(command[0]); cmd++) {
         if(!strcmp(cmd->cmd, buffer)) {
             (*cmd->func)(sd);
             break;
         }
     }
     return (0);
-}
-
-char *pathname(int sd, char *buffer)
-{
-    int i = 0;
-    int j = 0;
-    char *str = malloc(sizeof(char) * 80);
-
-    sd = sd;
-    for (i = 0; buffer[i] != ' '; i++);
-    for (i = i + 1; buffer[i] != '\0'; i++)
-        str[j++] = buffer[i];
-    return (str);
 }
 
 void quit(int sd, struct sockaddr_in address, int addrlen)
@@ -199,7 +203,8 @@ int main(int ac, char **av)
         if ((activity < 0) && (errno!=EINTR))
             printf("select error");
         if (FD_ISSET(master_socket, &readfds)) {
-            if ((new_socket = accept(master_socket, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
+            if ((new_socket =
+                 accept(master_socket, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
                 perror("accept");
                 exit(EXIT_FAILURE);
             }
@@ -237,12 +242,10 @@ int main(int ac, char **av)
                     }
                     else if (strncmp(rts, "USER Anonymous", 14) == 0) {
                         if (strncmp(string, "PASS ", 5) == 0) {
-
                             if (strncmp(buffer, "QUIT", 4) == 0) {
                                 quit(sd, address, addrlen);
                                 client_socket[i] = 0;
                                 break;
-
                             }
                             else if (check_command(sd, buffer) == 1)
                                 write(sd, "500 Syntax error, command unrecognized\n", 39);
