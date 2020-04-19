@@ -54,7 +54,7 @@ void dele(int sd, char *buffer)
     char *path = pathname(sd, buffer);
 
     if (remove(path) == 0)
-        write(sd, "250 Requested file action okay, completed\n", 42); 
+        write(sd, "250 Requested file action okay, completed\n", 42);
     else
         write(sd, "no existe bro\n", 14);
     free(path);
@@ -164,7 +164,7 @@ char *username(int sd, char *buffer)
 char *parseuser(char *buff)
 {
     char *token = strtok(buff, "A");
-    
+
     while (token != NULL)
         token = strtok(NULL, "A");
     return (buff);
@@ -173,7 +173,7 @@ char *parseuser(char *buff)
 char *parsecommand(char *buff)
 {
     char *token = strtok(buff, " ");
-    
+
     while (token != NULL)
         token = strtok(NULL, " ");
     return (buff);
@@ -201,12 +201,21 @@ char *parsecmd(char *buff)
     return (buff);
 }
 
+int arguments(int ac, char **av)
+{
+    if (ac > 3 || ac < 3)
+        return (84);
+    ac = ac;
+    if (chdir(av[2]) == -1) {
+        perror(av[2]);
+        return (84);
+    }
+    return (0);
+}
+
 int main(int ac, char **av)
 {
-    int master_socket, addrlen,
-        new_socket,
-        client_socket[30],
-        max_clients = 30,
+    int master_socket, addrlen, new_socket, client_socket[30], max_clients = 30,
         activity, i, valread, sd;
     int max_sd;
     struct sockaddr_in address;
@@ -217,15 +226,11 @@ int main(int ac, char **av)
     char buffer[1025];
     fd_set readfds;
 
-    if (ac > 3 || ac < 3)
+    if (arguments(ac, av) == 84)
         return (84);
-    if (chdir(av[2]) == -1) {
-        perror(av[2]);
-        return (84);
-    }
     for (i = 0; i < max_clients; i++)
         client_socket[i] = 0;
-    if ((master_socket = socket(AF_INET , SOCK_STREAM , 0)) == 0) {
+    if ((master_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
         perror("socket failed");
         return (84);
     }
@@ -262,12 +267,12 @@ int main(int ac, char **av)
             if ((new_socket =
                  accept(master_socket, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
                 perror("accept");
-                exit(EXIT_FAILURE);
+                return (84);
             }
             printf("New connection , socket fd is %d , ip is : %s , port : %d\n" , new_socket , inet_ntoa(address.sin_addr) , ntohs(address.sin_port));
             write(new_socket, "220 Service ready for new user\n", 31);
             for (i = 0; i < max_clients; i++) {
-                if( client_socket[i] == 0) {
+                if (client_socket[i] == 0) {
                     client_socket[i] = new_socket;
                     printf("Adding to list of sockets as %d\n" , i);
                     break;
