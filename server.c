@@ -45,7 +45,7 @@ void cwd(int sd, char *buffer)
     if (chdir(path) == 0)
         write(sd, "250 Requested file action okay, completed\n", 42);
     else
-        write(sd, "no existe bro\n", 14);
+        write(sd, "550 Requested action not taken\n", 31);
     free(path);
 }
 
@@ -56,7 +56,7 @@ void dele(int sd, char *buffer)
     if (remove(path) == 0)
         write(sd, "250 Requested file action okay, completed\n", 42);
     else
-        write(sd, "no existe bro\n", 14);
+        write(sd, "550 Requested action not taken\n", 31);
     free(path);
 }
 
@@ -66,7 +66,7 @@ void cdup(int sd, char *buffer)
     if (chdir("..") == 0)
         write(sd, "200 Command okay\n", 17);
     else
-        write(sd, "no existe bro\n", 14);
+        write(sd, "500 Syntax error, command unrecognized\n", 39);
 }
 
 void help(int sd, char *buffer)
