@@ -19,6 +19,8 @@
 #include <stdbool.h>
 #include <sys/stat.h>
 
+#define MAX 1024
+
 typedef struct command_s
 {
     char *cmd;
@@ -127,24 +129,12 @@ int check_command(int sd, char *buffer, char *user)
     return (0);
 }
 
-void quit(int sd,
-          struct sockaddr_in address,
-          int addrlen)
-{
-    getpeername(sd, (struct sockaddr*)&address,
-                (socklen_t*)&addrlen);
-    printf("Host disconnected , ip %s , port %d\n",
-           inet_ntoa(address.sin_addr),
-           ntohs(address.sin_port));
-    write(sd, "221 Service closing control connection\n", 39);
-    close(sd);
-}
-
 char *password(int sd, char *buffer, char *rts)
 {
     char *string = malloc(sizeof(char) * 80);
 
     strcpy(string, buffer);
+    printf("pass: %s\n", rts);
     if (strncmp(rts, "USER Anonymous", 14) == 0)
         write(sd, "230 User logged in, proceed\n", 28);
     else
@@ -213,110 +203,131 @@ int arguments(int ac, char **av)
     return (0);
 }
 
+void quit(int sd, struct sockaddr_in address, int addrlen)
+{
+    getpeername(sd, (struct sockaddr*)&address,
+                (socklen_t*)&addrlen);
+    printf("Host disconnected , ip %s , port %d\n",
+           inet_ntoa(address.sin_addr),
+           ntohs(address.sin_port));
+    write(sd, "221 Service closing control connection\n", 39);
+    close(sd);
+}
+
+int new_connection(int sockfd, struct sockaddr_in address, int addrlen)
+{
+    int new_sockfd;
+
+    if ((new_sockfd = accept(sockfd,
+                             (struct sockaddr *)&address,
+                             (socklen_t*)&addrlen)) < 0) {
+        perror("accept");
+        return (84);
+    }
+    printf("New connection , socket fd is %d , ip is : %s , port : %d\n",
+           new_sockfd, inet_ntoa(address.sin_addr),
+           ntohs(address.sin_port));
+    write(new_sockfd, "220 Service ready for new user\n", 31);
+    return (new_sockfd);
+}
+
+int server_socket(int ac, char **av)
+{
+    int sockfd;
+    struct sockaddr_in address;
+
+    if (arguments(ac, av) == 84)
+        return (84);
+    printf("Correct number of arguments\n");
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
+        return (84);
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(atoi(av[1]));
+    if (bind(sockfd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+        perror("bind\n");
+        return (84);
+    }
+    printf("Listening port %d\n", atoi(av[1]));
+    if (listen(sockfd, 3) < 0)
+        return (84);
+    return (sockfd);
+}
+
 int main(int ac, char **av)
 {
-    int master_socket, addrlen, new_socket, client_socket[30], max_clients = 30,
-        activity, i, valread, sd;
-    int max_sd;
-    struct sockaddr_in address;
+    int sockfd, addrlen, new_sockfd, clients[FD_SETSIZE], i, max_sd;
+    struct sockaddr_in addr;
     char *rts = malloc(sizeof(char) * 80);
     char *string = malloc(sizeof(char) * 80);
     char *user = malloc(sizeof(char) * 80);
     char *command = malloc(sizeof(char) * 80);
-    char buffer[1025];
+    char buff[MAX];
     fd_set readfds;
 
-    if (arguments(ac, av) == 84)
-        return (84);
-    for (i = 0; i < max_clients; i++)
-        client_socket[i] = 0;
-    if ((master_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        perror("socket failed");
-        return (84);
-    }
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(atoi(av[1]));
-    if (bind(master_socket, (struct sockaddr *)&address, sizeof(address)) < 0) {
-        perror("bind failed");
-        return (84);
-    }
-    printf("Listener on port %d\n", atoi(av[1]));
-    if (listen(master_socket, 3) < 0) {
-        perror("listen");
-        return (84);
-    }
-    addrlen = sizeof(address);
-    puts("Waiting for connections ...");
-
-    while(42) {
+    sockfd = server_socket(ac, av);
+    for (i = 0; i < FD_SETSIZE; i++)
+        clients[i] = 0;
+    addrlen = sizeof(addr);
+    for (;;) {
         FD_ZERO(&readfds);
-        FD_SET(master_socket, &readfds);
-        max_sd = master_socket;
-        for ( i = 0 ; i < max_clients ; i++) {
-            sd = client_socket[i];
-            if(sd > 0)
-                FD_SET(sd, &readfds);
-            if(sd > max_sd)
-                max_sd = sd;
+        FD_SET(sockfd, &readfds);
+        max_sd = sockfd;
+        for (i = 0 ; i < FD_SETSIZE; i++) {
+            if(clients[i] > 0)
+                FD_SET(clients[i], &readfds);
+            if(clients[i] > max_sd)
+                max_sd = clients[i];
         }
-        activity = select(max_sd + 1, &readfds, NULL, NULL, NULL);
-        if ((activity < 0) && (errno!=EINTR))
-            printf("select error");
-        if (FD_ISSET(master_socket, &readfds)) {
-            if ((new_socket =
-                 accept(master_socket, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
-                perror("accept");
+        if (select(max_sd + 1, &readfds, NULL, NULL, NULL) < 0)
+            return (84);
+        if (FD_ISSET(sockfd, &readfds)) {
+            if ((new_sockfd = new_connection(sockfd, addr, addrlen)) == 84)
                 return (84);
-            }
-            printf("New connection , socket fd is %d , ip is : %s , port : %d\n" , new_socket , inet_ntoa(address.sin_addr) , ntohs(address.sin_port));
-            write(new_socket, "220 Service ready for new user\n", 31);
-            for (i = 0; i < max_clients; i++) {
-                if (client_socket[i] == 0) {
-                    client_socket[i] = new_socket;
-                    printf("Adding to list of sockets as %d\n" , i);
+            for (i = 0; i < FD_SETSIZE; i++) {
+                if (clients[i] == 0) {
+                    clients[i] = new_sockfd;
                     break;
                 }
             }
         }
-        for (i = 0; i < max_clients; i++) {
-            sd = client_socket[i];
-            if (FD_ISSET(sd , &readfds)) {
-                if ((valread = read(sd, buffer, sizeof(buffer))) <= 0) {
-                    quit(sd, address, addrlen);
-                    client_socket[i] = 0;
+        for (i = 0; i < FD_SETSIZE; i++) {
+            if (FD_ISSET(clients[i], &readfds)) {
+                if ((read(clients[i], buff, sizeof(buff))) <= 0) {
+                    quit(clients[i], addr, addrlen);
+                    clients[i] = 0;
                 } else {
-                    parsecmd(buffer);
-                    printf("%s\n", buffer);
-                    strcpy(user, buffer);
+                    parsecmd(buff);
+                    printf("%s\n", buff);
+                    strcpy(user, buff);
                     parseuser(user);
-                    strcpy(command, buffer);
+                    strcpy(command, buff);
                     parsecommand(command);
-                    if (strncmp(buffer, "USER Anonymous", 14) == 0
+                    if (strncmp(buff, "USER Anonymous", 14) == 0
                         || strncmp(user, "USER ", 4) == 0)
-                        rts = username(sd, buffer);
-                    else if (strncmp(buffer, "PASS ", 5) == 0) {
-                        string = password(sd, buffer, rts);
+                        rts = username(clients[i], buff);
+                    else if (strncmp(buff, "PASS ", 5) == 0) {
+                        string = password(clients[i], buff, rts);
                     }
-                    else if (strncmp(buffer, "QUIT", 4) == 0) {
-                        quit(sd, address, addrlen);
-                        client_socket[i] = 0;
+                    else if (strncmp(buff, "QUIT", 4) == 0) {
+                        quit(clients[i], addr, addrlen);
+                        clients[i] = 0;
                         break;
                     }
                     else if (strncmp(rts, "USER Anonymous", 14) == 0) {
                         if (strncmp(string, "PASS ", 5) == 0) {
-                            if (strncmp(buffer, "QUIT", 4) == 0) {
-                                quit(sd, address, addrlen);
-                                client_socket[i] = 0;
+                            if (strncmp(buff, "QUIT", 4) == 0) {
+                                quit(clients[i], addr, addrlen);
+                                clients[i] = 0;
                                 break;
                             }
-                            else if (check_command(sd, buffer, command) == 1)
-                                write(sd, "500 Syntax error, command unrecognized\n", 39);
+                            else if (check_command(clients[i], buff, command) == 1)
+                                write(clients[i], "500 Syntax error, command unrecognized\n", 39);
                         }
                     } else
-                        write(sd, "530 Not logged in\n", 18);
-                    bzero(buffer, sizeof(buffer));
-                    FD_CLR(sd, &readfds);
+                        write(clients[i], "530 Not logged in\n", 18);
+                    bzero(buff, sizeof(buff));
+                    FD_CLR(clients[i], &readfds);
                 }
             }
         }
