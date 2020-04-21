@@ -174,7 +174,7 @@ void strip_extra_spaces(char* str)
     int i;
     int x;
 
-    for(i=x=0; str[i]; ++i)
+    for(i = x = 0; str[i]; ++i)
         if(!isspace(str[i])
            || (i > 0 && !isspace(str[i-1])))
             str[x++] = str[i];
@@ -245,7 +245,7 @@ int server_socket(int ac, char **av)
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(atoi(av[1]));
     if (bind(sockfd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-        perror("bind\n");
+        perror("bind");
         return (84);
     }
     printf("Listening port %d\n", atoi(av[1]));
@@ -332,6 +332,5 @@ int main(int ac, char **av)
             }
         }
     }
-
     return (0);
 }
