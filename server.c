@@ -203,15 +203,33 @@ int arguments(int ac, char **av)
     return (0);
 }
 
-void quit(int sd, struct sockaddr_in address, int addrlen)
+typedef struct server_s
 {
-    getpeername(sd, (struct sockaddr*)&address,
-                (socklen_t*)&addrlen);
+    int sockfd;
+    int addrlen;
+    int new_sockfd;
+    int clients[FD_SETSIZE];
+    int max_sd;
+    struct sockaddr_in addr;
+    char buff[MAX];
+    fd_set readfds;
+    char *rts;
+    char *string;
+    char *user;
+    char *command;
+} server_t;
+
+int quit(server_t *s, int i)
+{
+    getpeername(s->clients[i], (struct sockaddr*)&s->addr,
+                (socklen_t*)&s->addrlen);
     printf("Host disconnected , ip %s , port %d\n",
-           inet_ntoa(address.sin_addr),
-           ntohs(address.sin_port));
-    write(sd, "221 Service closing control connection\n", 39);
-    close(sd);
+           inet_ntoa(s->addr.sin_addr),
+           ntohs(s->addr.sin_port));
+    write(s->clients[i], "221 Service closing control connection\n", 39);
+    close(s->clients[i]);
+    s->clients[i] = 0;
+    return (1);
 }
 
 int new_connection(int sockfd, struct sockaddr_in address, int addrlen)
@@ -231,106 +249,114 @@ int new_connection(int sockfd, struct sockaddr_in address, int addrlen)
     return (new_sockfd);
 }
 
-int server_socket(int ac, char **av)
+int server_socket(server_t *s, int i, int ac, char **av)
 {
-    int sockfd;
-    struct sockaddr_in address;
-
     if (arguments(ac, av) == 84)
         return (84);
     printf("Correct number of arguments\n");
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
+    if ((s->sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
         return (84);
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(atoi(av[1]));
-    if (bind(sockfd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    s->addr.sin_family = AF_INET;
+    s->addr.sin_addr.s_addr = INADDR_ANY;
+    s->addr.sin_port = htons(atoi(av[1]));
+    if (bind(s->sockfd, (struct sockaddr *)&s->addr, sizeof(s->addr)) < 0) {
         perror("bind");
         return (84);
     }
     printf("Listening port %d\n", atoi(av[1]));
-    if (listen(sockfd, 3) < 0)
+    if (listen(s->sockfd, 3) < 0)
         return (84);
-    return (sockfd);
+    for (i = 0; i < FD_SETSIZE; i++)
+        s->clients[i] = 0;
+    s->addrlen = sizeof(s->addr);
+    return (0);
+}
+
+int select_new_connection(server_t *s, int i)
+{
+    s->max_sd = s->sockfd;
+    for (i = 0 ; i < FD_SETSIZE; i++) {
+        if(s->clients[i] > 0)
+            FD_SET(s->clients[i], &s->readfds);
+        if(s->clients[i] > s->max_sd)
+            s->max_sd = s->clients[i];
+    }
+    if (select(s->max_sd + 1, &s->readfds, NULL, NULL, NULL) < 0)
+        return (84);
+    if (FD_ISSET(s->sockfd, &s->readfds)) {
+        if ((s->new_sockfd = new_connection(s->sockfd, s->addr, s->addrlen)) == 84)
+            return (84);
+        for (i = 0; i < FD_SETSIZE; i++) {
+            if (s->clients[i] == 0) {
+                s->clients[i] = s->new_sockfd;
+                break;
+            }
+        }
+    }
+    return (0);
+}
+
+int login_and_commands(server_t *s, int i)
+{
+    if (strncmp(s->buff, "USER Anonymous", 14) == 0
+        || strncmp(s->user, "USER ", 4) == 0)
+        s->rts = username(s->clients[i], s->buff);
+    else if (strncmp(s->buff, "PASS ", 5) == 0)
+        s->string = password(s->clients[i], s->buff, s->rts);
+    else if (strncmp(s->buff, "QUIT", 4) == 0)
+        return (quit(s, i));
+    else if (strncmp(s->rts, "USER Anonymous", 14) == 0) {
+        if (strncmp(s->string, "PASS ", 5) == 0) {
+            if (strncmp(s->buff, "QUIT", 4) == 0)
+                return (quit(s, i));
+            else if (check_command(s->clients[i], s->buff, s->command) == 1)
+                write(s->clients[i],
+                      "500 Syntax error, command unrecognized\n", 39);
+        }
+    } else
+        write(s->clients[i], "530 Not logged in\n", 18);
+    return (0);
+}
+
+int server_system(server_t *s, int i)
+{
+    if ((read(s->clients[i], s->buff, sizeof(s->buff))) <= 0) {
+        return (quit(s, i));
+    } else {
+        parsecmd(s->buff);
+        printf("%s\n", s->buff);
+        strcpy(s->user, s->buff);
+        parseuser(s->user);
+        strcpy(s->command, s->buff);
+        parsecommand(s->command);
+        if ((login_and_commands(s, i)) == 1)
+            return (1);
+        bzero(s->buff, sizeof(s->buff));
+        FD_CLR(s->clients[i], &s->readfds);
+    }
+    return (0);
 }
 
 int main(int ac, char **av)
 {
-    int sockfd, addrlen, new_sockfd, clients[FD_SETSIZE], i, max_sd;
-    struct sockaddr_in addr;
-    char *rts = malloc(sizeof(char) * 80);
-    char *string = malloc(sizeof(char) * 80);
-    char *user = malloc(sizeof(char) * 80);
-    char *command = malloc(sizeof(char) * 80);
-    char buff[MAX];
-    fd_set readfds;
+    server_t *s = malloc(sizeof(server_t));
+    int i = 0;
 
-    sockfd = server_socket(ac, av);
-    for (i = 0; i < FD_SETSIZE; i++)
-        clients[i] = 0;
-    addrlen = sizeof(addr);
+    s->rts = malloc(sizeof(char) * 80);
+    s->string = malloc(sizeof(char) * 80);
+    s->user = malloc(sizeof(char) * 80);
+    s->command = malloc(sizeof(char) * 80);
+    if ((server_socket(s, i, ac, av)) == 84)
+        return (84);
     for (;;) {
-        FD_ZERO(&readfds);
-        FD_SET(sockfd, &readfds);
-        max_sd = sockfd;
-        for (i = 0 ; i < FD_SETSIZE; i++) {
-            if(clients[i] > 0)
-                FD_SET(clients[i], &readfds);
-            if(clients[i] > max_sd)
-                max_sd = clients[i];
-        }
-        if (select(max_sd + 1, &readfds, NULL, NULL, NULL) < 0)
+        FD_ZERO(&s->readfds);
+        FD_SET(s->sockfd, &s->readfds);
+        if ((select_new_connection(s, i)) == 84)
             return (84);
-        if (FD_ISSET(sockfd, &readfds)) {
-            if ((new_sockfd = new_connection(sockfd, addr, addrlen)) == 84)
-                return (84);
-            for (i = 0; i < FD_SETSIZE; i++) {
-                if (clients[i] == 0) {
-                    clients[i] = new_sockfd;
+        for (i = 0; i < FD_SETSIZE; i++)
+            if (FD_ISSET(s->clients[i], &s->readfds))
+                if ((server_system(s, i)) == 1)
                     break;
-                }
-            }
-        }
-        for (i = 0; i < FD_SETSIZE; i++) {
-            if (FD_ISSET(clients[i], &readfds)) {
-                if ((read(clients[i], buff, sizeof(buff))) <= 0) {
-                    quit(clients[i], addr, addrlen);
-                    clients[i] = 0;
-                } else {
-                    parsecmd(buff);
-                    printf("%s\n", buff);
-                    strcpy(user, buff);
-                    parseuser(user);
-                    strcpy(command, buff);
-                    parsecommand(command);
-                    if (strncmp(buff, "USER Anonymous", 14) == 0
-                        || strncmp(user, "USER ", 4) == 0)
-                        rts = username(clients[i], buff);
-                    else if (strncmp(buff, "PASS ", 5) == 0) {
-                        string = password(clients[i], buff, rts);
-                    }
-                    else if (strncmp(buff, "QUIT", 4) == 0) {
-                        quit(clients[i], addr, addrlen);
-                        clients[i] = 0;
-                        break;
-                    }
-                    else if (strncmp(rts, "USER Anonymous", 14) == 0) {
-                        if (strncmp(string, "PASS ", 5) == 0) {
-                            if (strncmp(buff, "QUIT", 4) == 0) {
-                                quit(clients[i], addr, addrlen);
-                                clients[i] = 0;
-                                break;
-                            }
-                            else if (check_command(clients[i], buff, command) == 1)
-                                write(clients[i], "500 Syntax error, command unrecognized\n", 39);
-                        }
-                    } else
-                        write(clients[i], "530 Not logged in\n", 18);
-                    bzero(buff, sizeof(buff));
-                    FD_CLR(clients[i], &readfds);
-                }
-            }
-        }
     }
     return (0);
 }
