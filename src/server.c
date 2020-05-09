@@ -196,21 +196,19 @@ int quit(server_t *s, int i)
     return (1);
 }
 
-int new_connection(int sockfd, struct sockaddr_in address, int addrlen)
+int new_connection(server_t *s)
 {
-    int new_sockfd;
-
-    if ((new_sockfd = accept(sockfd,
-                             (struct sockaddr *)&address,
-                             (socklen_t*)&addrlen)) < 0) {
+    if ((s->new_sockfd = accept(s->sockfd,
+                             (struct sockaddr *)&s->addr,
+                             (socklen_t*)&s->addrlen)) < 0) {
         perror("accept");
         return (84);
     }
     printf("New connection , socket fd is %d , ip is : %s , port : %d\n",
-           new_sockfd, inet_ntoa(address.sin_addr),
-           ntohs(address.sin_port));
-    write(new_sockfd, "220 Service ready for new user\n", 31);
-    return (new_sockfd);
+           s->new_sockfd, inet_ntoa(s->addr.sin_addr),
+           ntohs(s->addr.sin_port));
+    write(s->new_sockfd, "220 Service ready for new user\n", 31);
+    return (0);
 }
 
 int server_socket(server_t *s, int i, int ac, char **av)
@@ -248,7 +246,7 @@ int select_new_connection(server_t *s, int i)
     if (select(s->max_sd + 1, &s->readfds, NULL, NULL, NULL) < 0)
         return (84);
     if (FD_ISSET(s->sockfd, &s->readfds)) {
-        if ((s->new_sockfd = new_connection(s->sockfd, s->addr, s->addrlen)) == 84)
+        if (new_connection(s) == 84)
             return (84);
         for (i = 0; i < FD_SETSIZE; i++) {
             if (s->clients[i] == 0) {
